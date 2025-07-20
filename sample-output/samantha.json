@@ -1,0 +1,17 @@
+{
+  "name": "Samantha Reyes",
+  "callerType": "Student",
+  "department": "Architecture Department",
+  "email": "samantha.reyes27@yahoo.com",
+  "phone": "917-654-3210",
+  "project": "Urban Design Initiative",
+  "inquiry": "Following up on the Urban Design Initiative project status",
+  "actionrequest": "Update me on the status of the project",
+  "actionrequestSummary": "Update on project status",
+  "urgency": "Urgent",
+  "urgencyAnalysis": "Supervisor requires confirmation by Wednesday for clearance",
+  "deadline": "by Wednesday",
+  "deadlineMissed": false,
+  "emailValid": true,
+  "summary": "Samantha Reyes is requesting an update on Urban Design Initiative to meet a Wednesday clearance deadline."
+}

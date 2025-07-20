@@ -1,0 +1,17 @@
+{
+  "name": "Camille Reyes",
+  "callerType": "Staff",
+  "department": "Planning Department",
+  "email": "camille.r.planning@gmail.com",
+  "phone": "0917-456-7890",
+  "project": "Site Plan",
+  "inquiry": "Follow up on Site Plan Review documentation",
+  "actionrequest": "Confirm if the submitted documentation is in the queue",
+  "actionrequestSummary": "Confirmation of submitted documentation in the queue",
+  "urgency": "Low",
+  "urgencyAnalysis": "Caller is seeking an update or follow-up",
+  "deadline": "",
+  "deadlineMissed": false,
+  "emailValid": true,
+  "summary": "Camille Reyes from Planning Department asking to confirm if Site Plan Review documentation was received. Low urgency."
+}

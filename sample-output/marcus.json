@@ -1,0 +1,17 @@
+{
+  "name": "Marcus",
+  "callerType": "Unknown",
+  "department": "Unknown",
+  "email": "marcus.udi@outlook.com",
+  "phone": "0917-123-4567",
+  "project": "Urban Design Initiative",
+  "inquiry": "Follow-up on Urban Design Initiative call",
+  "actionrequest": "Please confirm details before Thursday.",
+  "actionrequestSummary": "Confirm details before Thursday",
+  "urgency": "Urgent",
+  "urgencyAnalysis": "Deadline approaching on Thursday",
+  "deadline": "before the end of the week (Thursday)",
+  "deadlineMissed": false,
+  "emailValid": true,
+  "summary": "Marcus needs Urban Design Initiative confirmation by Thursday. Feeling stressed due to upcoming deadline. Contact provided."
+}
