@@ -1,0 +1,623 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3675b383-e96c-478c-a2a9-06782df3c0cc",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        576
+      ],
+      "id": "e9baff47-0097-44ab-a801-5558650231ec",
+      "name": "voice-upload-test",
+      "webhookId": "3675b383-e96c-478c-a2a9-06782df3c0cc"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a data extraction assistant. Extract structured information from the transcript provided.\n\nInstructions:\n- Extract the following fields:\n  - name (string): Caller’s full name. If they say “Hi, this is Samantha Reyes”, extract “Samantha Reyes”. If not stated, return \"Unknown\".\n  - callerType (string): One of “Student”, “Staff”, “Faculty”, “External”.\n  - roleTitle (string): Extract the caller’s job title (e.g., “Sales Manager”, “Project Manager”). Only include the title, not the name or department. If not found, return \"Unknown\".\n  - department (string): Extract department if mentioned (e.g., “Sales Department”). Otherwise, return \"Unknown\".\n  - email (string): Extract the caller’s email. If they say something like \"name.outlook.com\", correct it to \"name@outlook.com\". Only return \"unknown@example.com\" if nothing resembling an email was said.\n  - phone (string): Extract any phone number mentioned. If none, return an empty string.\n  - project (string): Extract the project name or description if mentioned (e.g., “Contract Review”, “Urban Design Initiative”). If none, return an empty string.\n  - inquiry (string): Summary of what the caller is inquiring about.\n  - actionrequest (string): Full sentence of what the caller is requesting.\n  - actionrequestSummary (string): Short summary version of the action requested.\n  - urgency (string): One of “Urgent”, “Normal”, “Low”, or “Unclear”.\n  - urgencyAnalysis (string): Reasoning why it’s urgent, if stated.\n  - deadline (string): If a deadline or due date is mentioned (e.g., \"by Wednesday\", \"before the end of the week\", or \"July 25\"), extract that as plain text. Otherwise, return an empty string.\n  - deadlineMissed (boolean): Set to `true` if the deadline has already passed. Otherwise, return `false`.\n  - emailValid (boolean): Return `true` if the email format is valid (has @ and .), otherwise `false`.\n  - summary (string): Write a smart assistant-style summary of the call.\n    - Begin with the caller’s name and role if available\n    - Describe the reason for the call and any urgency or deadlines\n    - Always include any signs of confusion or routing issues (e.g., \"not sure who to contact\", \"hoping to speak with support\")\n    - If urgency isn't stated but intent is clear, still include it\n    - If minimal info is given, still generate a helpful, polite summary based on known fields\n    - Use clear, concise language—as if preparing a CRM note\n    - Try to keep it under 30 words unless extra detail would be valuable\n    - This must never be null\n\nOutput format: Return only a valid JSON object (no quotes around the entire JSON, no markdown). All fields must be present.\n\nImportant:\n- Do not return values as strings if they are booleans.\n- `deadlineMissed` and `emailValid` must be true or false (booleans), not strings or empty values.\n- Do not include explanations, extra comments, or formatting. Only return raw JSON.\n\nTranscript:\n{{ $json[\"text\"] }}\n",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        288,
+        576
+      ],
+      "id": "c30b43d4-d3a6-44ad-b41b-dcac697d9f24",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        784
+      ],
+      "id": "c0195565-48ae-4e7d-97d0-c94c39e86ee2",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "eyOfvKAubfEGB4vP",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $json.output || $json;\nconst now = new Date();\nconst raw = $node[\"Transcribe a recording *whisper*\"].json.text || \"\";\n\n// Timestamp (PH)\nconst timestamp = now.toLocaleString(\"en-PH\", {\n  timeZone: \"Asia/Manila\",\n  year: \"numeric\",\n  month: \"short\",\n  day: \"2-digit\",\n  hour: \"2-digit\",\n  minute: \"2-digit\"\n});\n\n// Email correction (always check if @ missing)\nlet email = parsed.email?.trim() || \"\";\nif (!email.includes(\"@\")) {\n  const rawMatch = raw.match(/\\b[\\w.-]+(?:@|\\s+at\\s+)?[\\w.-]+\\.\\w+\\b/i);\n  if (rawMatch) {\n    email = rawMatch[0].replace(/\\s+at\\s+/i, \"@\").replace(/\\s+/g, \"\");\n    if (!email.includes(\"@\") && email.includes(\".\")) {\n      const parts = email.split(\".\");\n      if (parts.length >= 2) {\n        email = parts[0] + \"@\" + parts.slice(1).join(\".\");\n      }\n    }\n  }\n}\nconst emailValid = /^[^@]+@[^@]+\\.[^@]+$/.test(email);\n\n// Phone cleanup\nlet phone = parsed.phone || \"\";\nphone = phone.replace(/\\D+/g, \"\");\n\n// Use roleTitle from GPT, fallback if missing\nlet roleTitle = parsed.roleTitle?.trim() || \"Unknown\";\n\n// Project fallback (matches inquiry/actionrequest/summary)\nlet project = parsed.project?.trim();\nif (!project) {\n  const sourceText = `${parsed.actionrequest || \"\"} ${parsed.inquiry || \"\"} ${parsed.summary || \"\"}`;\n  const match = sourceText.match(/(contract review|urban design|studio|model build|critique|site plan|client approval)/i);\n  project = match ? match[0].replace(/\\b[a-z]/, c => c.toUpperCase()) : \"General Request\";\n}\n\n// Deadline parsing\nlet deadlineDate = null;\nlet deadlineMissed = false;\nlet deadline = \"\";\n\nif (parsed.deadline) {\n  const parsedDate = new Date(Date.parse(parsed.deadline));\n  if (!isNaN(parsedDate)) {\n    deadlineDate = parsedDate.toISOString().slice(0, 10);\n    deadline = deadlineDate;\n\n    const today = new Date(now.toISOString().slice(0, 10) + \"T00:00:00\");\n    const deadlineOnly = new Date(deadlineDate + \"T00:00:00\");\n    deadlineMissed = deadlineOnly < today;\n  }\n}\nconst deadlineMissedString = deadlineMissed ? \"MISSED\" : \"FALSE\";\n\n// Urgency Analysis fallback\nlet urgencyAnalysis = parsed.urgencyAnalysis?.trim();\nif (!urgencyAnalysis) {\n  const urgency = parsed.urgency?.toLowerCase();\n  const action = `${parsed.actionrequest || \"\"}`.toLowerCase();\n  const inquiry = `${parsed.inquiry || \"\"}`.toLowerCase();\n\n  if (parsed.deadline) {\n    urgencyAnalysis = \"Deadline mentioned by caller\";\n  } else if (urgency === \"urgent\") {\n    urgencyAnalysis = \"Caller described request as urgent\";\n  } else if (action.includes(\"asap\") || action.includes(\"immediately\") || action.includes(\"soon\")) {\n    urgencyAnalysis = \"Immediate attention requested by caller\";\n  } else if (\n    action.includes(\"follow up\") || action.includes(\"check in\") ||\n    action.includes(\"update\") || inquiry.includes(\"follow up\") ||\n    inquiry.includes(\"progress\") || inquiry.includes(\"waiting\")\n  ) {\n    urgencyAnalysis = \"Caller is seeking an update or follow-up\";\n  } else if (urgency === \"low\") {\n    urgencyAnalysis = \"No urgency or pressure stated\";\n  } else {\n    urgencyAnalysis = \"Unclear urgency level\";\n  }\n}\n\n// Final output\nreturn {\n  ...parsed,\n  email,\n  emailValid,\n  phone,\n  roleTitle,\n  project,\n  urgencyAnalysis,\n  deadline,\n  deadlineDate,\n  deadlineMissed: deadlineMissedString,\n  timestamp,\n  rawTranscript: raw,\n  raw: JSON.stringify(parsed, null, 2)\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        576
+      ],
+      "id": "f58d3e2a-b8f2-4ffa-84c6-423c1ce44397",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e24973b9-899d-4875-9a6b-852e112b9287",
+              "leftValue": "={{$json[\"error\"] || null}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        576
+      ],
+      "id": "ce67368d-907f-4580-9db8-959e42888ea2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "file",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -160,
+        576
+      ],
+      "id": "e2425af2-edaa-4964-aecd-2fd8421ad602",
+      "name": "Transcribe a recording *whisper*",
+      "credentials": {
+        "openAiApi": {
+          "id": "eyOfvKAubfEGB4vP",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "7639032916",
+        "text": "=⚠️ Transcription Error\nFile: {{$json[\"filename\"] || \"Unknown\"}}\nError: {{$json[\"error\"] || \"None\"}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        464
+      ],
+      "id": "9e815d8d-0bfb-4366-bb47-dfc25c65e010",
+      "name": "Alert if parse failed",
+      "webhookId": "8aeceb04-00ba-48b2-a627-6643b90ceb7b",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"name\": \"string\",\n  \"callerType\": \"string\",\n  \"roleTitle\": \"string\",\n  \"department\": \"string\",\n  \"email\": \"string\",\n  \"phone\": \"string\",\n  \"project\": \"string\",\n  \"inquiry\": \"string\",\n  \"actionrequest\": \"string\",\n  \"actionrequestSummary\": \"string\",\n  \"urgency\": \"string\",\n  \"urgencyAnalysis\": \"string\",\n  \"deadline\": \"string\",\n  \"deadlineMissed\": false,\n  \"emailValid\": true,\n  \"summary\": \"string\"\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        784
+      ],
+      "id": "e43183f4-6527-47ad-ad4d-b7b4a70de8d3",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appXpNiN4xZXPi7kr",
+          "mode": "list",
+          "cachedResultName": "Transcription CRM",
+          "cachedResultUrl": "https://airtable.com/appXpNiN4xZXPi7kr"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblNZCdhw7ckSRPtj",
+          "mode": "list",
+          "cachedResultName": "Transcriptions",
+          "cachedResultUrl": "https://airtable.com/appXpNiN4xZXPi7kr/tblNZCdhw7ckSRPtj"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{$json[\"name\"]}}",
+            "Email": "={{$json[\"email\"]}}",
+            "Action Request": "={{ $json.actionrequest }}",
+            "Urgency": "={{$json[\"urgency\"]}}",
+            "Raw Transcript": "={{ $json.rawTranscript }}",
+            "Department": "={{$json[\"department\"]}}",
+            "Action Request Summary": "={{ $json.actionrequestSummary }}",
+            "Parse Status": "success",
+            "Phone": "={{ $json.phone }}",
+            "Deadline": "={{ $json.deadline }}",
+            "Caller Type": "={{ $json.callerType }}",
+            "Summary": "={{ $json.summary }}",
+            "Urgency Analysis": "={{ $json.urgencyAnalysis }}",
+            "Role Title": "={{ $json.roleTitle }}",
+            "Project": "={{ $json.project }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Role Title",
+              "displayName": "Role Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Caller Type",
+              "displayName": "Caller Type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Project",
+              "displayName": "Project",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Action Request",
+              "displayName": "Action Request",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Urgent",
+                  "value": "Urgent"
+                },
+                {
+                  "name": "Normal",
+                  "value": "Normal"
+                },
+                {
+                  "name": "Low",
+                  "value": "Low"
+                },
+                {
+                  "name": "Unclear",
+                  "value": "Unclear"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Deadline Missed",
+              "displayName": "Deadline Missed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "MISSED",
+                  "value": "MISSED"
+                },
+                {
+                  "name": "FALSE",
+                  "value": "FALSE"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Parse Status",
+              "displayName": "Parse Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "success",
+                  "value": "success"
+                },
+                {
+                  "name": "failed",
+                  "value": "failed"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Action Request Summary",
+              "displayName": "Action Request Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Urgency Analysis",
+              "displayName": "Urgency Analysis",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email Domain",
+              "displayName": "Email Domain",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Transcript Word Count",
+              "displayName": "Transcript Word Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Raw Transcript",
+              "displayName": "Raw Transcript",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email Valid",
+              "displayName": "Email Valid",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1184,
+        688
+      ],
+      "id": "42b3625b-475d-4664-b2a0-413cf0e2cb6e",
+      "name": "Transcription CRM",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Nete1Soui9mEF2UC",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ce41d85e-5244-4419-9d06-131a4012bb71",
+              "name": "originalTranscript",
+              "value": "={{$json.text}}",
+              "type": "string"
+            },
+            {
+              "id": "01d5493a-5992-482f-a245-81183877e50b",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "include": "except",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        576
+      ],
+      "id": "7f61ff5b-6bd2-4767-9443-423d703a178c",
+      "name": "originalTranscript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "voice-upload-test": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording *whisper*",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Alert if parse failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transcription CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording *whisper*": {
+      "main": [
+        [
+          {
+            "node": "originalTranscript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "originalTranscript1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a116accd-79a1-4bcc-a875-75d538e3f8bf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9382ce47ebcd7cdbc9d670fc65e2ee80c59705f55bb6ed0e4c2a0633328a8f59"
+  },
+  "id": "dJnfDPx2ONGga7Cr",
+  "tags": []
+}
